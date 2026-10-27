@@ -1,0 +1,65 @@
+name: selfcheck
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  selfcheck:
+    name: selfcheck (node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ['22', '24']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: 校验 package.json
+        run: node -e "JSON.parse(require('fs').readFileSync('package.json','utf8')); console.log('package.json OK')"
+
+      - name: 语法检查
+        run: |
+          for f in index.js lib/*.js; do
+            node --check "$f"
+            echo "syntax ok: $f"
+          done
+
+      - name: 插件导出面检查
+        run: |
+          node -e "
+          import('./index.js').then((m) => {
+            if (typeof m.apply !== 'function') throw new Error('缺少 apply 导出');
+            if (m.name !== 'companion-memory') throw new Error('name 导出不是 companion-memory');
+            if (!Array.isArray(m.inject)) throw new Error('缺少 inject 导出');
+            console.log('plugin export ok ->', Object.keys(m).join(','));
+          }).catch((error) => { console.error(error); process.exit(1) });
+          "
+
+      - name: 自检（30 项固定用例）
+        run: node selfcheck.mjs
+
+      - name: 隐私闸：确认本地记忆数据未被跟踪
+        run: |
+          if git ls-files | grep -E 'archive\.jsonl|records\.json|state\.json|node_modules'; then
+            echo "::error::归档或记忆数据不应进入版本库"
+            exit 1
+          fi
+          echo "OK：无记忆数据、无 node_modules"
+
+      - name: 分发清单检查
+        run: |
+          missing=0
+          for f in index.js lib selfcheck.mjs cordis.patch.yml locale icon.svg LICENSE README.md; do
+            if [ ! -e "$f" ]; then echo "::error::files 白名单里的 $f 不存在"; missing=1; fi
+          done
+          [ "$missing" = "0" ] && echo "OK：package.json files 白名单全部存在"

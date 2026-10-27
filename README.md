@@ -1,5 +1,8 @@
 # dsh-companion-memory
 
+![selfcheck](https://github.com/sutanglime/dsh-companion-memory/actions/workflows/selfcheck.yml/badge.svg)
+![license](https://img.shields.io/badge/license-MIT-blue.svg)
+
 陪伴 AI 的**冷热分层记忆** DSH 插件：全自动对话归档、旧事渐进冷存、按用户线索从冷库召回，
 并在每轮请求发出前用一个**有预算上限的记忆快照**替换掉"每次都重读全部旧对话"。
 
