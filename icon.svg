@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Companion Memory">
+  <title>Companion Memory</title>
+  <defs>
+    <linearGradient id="cmGrad" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#5b8cff"/>
+      <stop offset="100%" stop-color="#9b5cff"/>
+    </linearGradient>
+  </defs>
+  <rect x="5" y="5" width="54" height="54" rx="15" fill="none" stroke="url(#cmGrad)" stroke-width="3"/>
+  <circle cx="32" cy="24" r="6" fill="url(#cmGrad)"/>
+  <path d="M19 45a13 13 0 0 1 26 0" fill="none" stroke="url(#cmGrad)" stroke-width="3" stroke-linecap="round"/>
+  <path d="M26 45a6 6 0 0 1 12 0" fill="none" stroke="url(#cmGrad)" stroke-width="3" stroke-linecap="round" opacity="0.55"/>
+</svg>

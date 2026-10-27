@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Companion Memory (hot/cold tiers)",
+    "description": "Gradually cools old companion-AI memories into cold storage, recalls them from an explicit user cue, and bounds the memory tokens injected each turn."
+  }
+}

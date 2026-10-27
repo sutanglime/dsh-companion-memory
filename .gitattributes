@@ -1,0 +1,17 @@
+# 统一行尾为 LF。
+# 插件文件会被 clone / 打包分发，行尾若随平台改写会造成无意义 diff，
+# 也可能让脚本类文件在别的系统上行为不一致。
+* text=auto eol=lf
+
+# 明确二进制，避免 Git 尝试做行尾转换
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+
+# 归档与数据文件永远是本地产物，不入版本库
+*.jsonl -text

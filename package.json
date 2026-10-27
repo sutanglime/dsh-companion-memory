@@ -1,0 +1,45 @@
+{
+  "name": "dsh-companion-memory",
+  "version": "0.2.0",
+  "type": "module",
+  "description": "陪伴 AI 的冷热分层记忆：全自动对话归档、旧事渐进冷存、按用户线索召回冷库，并在每轮请求前按预算限制注入的记忆快照。",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "memory",
+    "companion",
+    "token-optimization"
+  ],
+  "license": "MIT",
+  "author": "dsh-companion-memory contributors",
+  "icon": "./icon.svg",
+  "exports": {
+    ".": "./index.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
+  },
+  "engines": {
+    "dsh": ">=0.2.0",
+    "node": ">=22"
+  },
+  "scripts": {
+    "selfcheck": "node selfcheck.mjs"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "files": [
+    "index.js",
+    "lib",
+    "selfcheck.mjs",
+    "cordis.patch.yml",
+    "locale",
+    "icon.svg",
+    "LICENSE",
+    "README.md"
+  ]
+}
