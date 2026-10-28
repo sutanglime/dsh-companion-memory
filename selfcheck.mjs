@@ -11,6 +11,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { deriveTurnEntry } from './lib/archive.js'
+import { ArchiveIndex } from './lib/archive-index.js'
 import {
   buildSnapshot,
   computeHeat,
@@ -378,6 +379,113 @@ await check('助手工具轮也留档，正文为空时记下工具名', () => {
 await check('工具结果与系统消息不入档', () => {
   assert.equal(deriveTurnEntry({ type: 'tool/result', seq: 13, time: NOW, data: {} }, { id: 's1' }), null)
   assert.equal(deriveTurnEntry({ type: 'system/message', seq: 14, time: NOW, data: {} }, { id: 's1' }), null)
+})
+
+console.log('归档词法索引')
+
+function turn(overrides) {
+  return {
+    kind: 'turn',
+    session_id: 's1',
+    seq: 1,
+    at: '2026-10-01T00:00:00.000Z',
+    speaker: 'user',
+    text: '',
+    system_context: false,
+    ...overrides,
+  }
+}
+
+await check('只索引对话轮次：系统注入上下文与空正文被排除', () => {
+  const index = new ArchiveIndex({})
+  index.addEntry(turn({ seq: 1, text: '今天有点累' }))
+  index.addEntry(turn({ seq: 2, text: 'Current runtime context. ...', system_context: true }))
+  index.addEntry(turn({ seq: 3, text: '' }))
+  index.addEntry({ kind: 'memory_card', memory_id: 'm-1' })
+  assert.equal(index.size, 1)
+})
+await check('同一条（session#seq）重复加入只算一次', () => {
+  const index = new ArchiveIndex({})
+  index.addEntry(turn({ seq: 7, text: '重复内容' }))
+  index.addEntry(turn({ seq: 7, text: '重复内容' }))
+  assert.equal(index.size, 1)
+})
+await check('稀有词压过泛词：泛词因 df 过高被忽略', () => {
+  const index = new ArchiveIndex({})
+  index.addEntry(turn({ session_id: 'rare', seq: 1, text: '我喜欢用硅基流动的接口', speaker: 'user' }))
+  for (let i = 0; i < 39; i += 1) {
+    index.addEntry(turn({ session_id: 'generic', seq: i + 1, text: '插件相关的一般说明' }))
+  }
+  const result = index.search('硅基流动 插件', 3)
+  // 中文线索按设计不判定"已定位"，但排序必须把含稀有词的那条排第一、泛词条目被 df 过滤掉
+  assert.equal(result.rareHit, true)
+  assert.equal(result.candidates.length, 1, '含泛词的条目应当因 df 过高完全不进候选')
+  assert.equal(result.candidates[0].id, 'rare#1')
+})
+await check('冷召回不惩罚年代：内容相同则分数相同（时间字段不参与打分）', () => {
+  const index = new ArchiveIndex({})
+  index.addEntry(turn({ session_id: 'old', seq: 1, at: '2019-01-01T00:00:00.000Z', text: '在西安买了胶片相机' }))
+  index.addEntry(turn({ session_id: 'new', seq: 1, at: '2026-10-01T00:00:00.000Z', text: '在西安买了胶片相机' }))
+  const result = index.search('在西安买的胶片相机', 2)
+  const byId = Object.fromEntries(result.candidates.map((c) => [c.id, c.score]))
+  assert.equal(byId['old#1'], byId['new#1'])
+})
+await check('只命中部分线索时低于阈值：返回候选而不是当成已定位', () => {
+  const index = new ArchiveIndex({})
+  index.addEntry(turn({ session_id: 'a', seq: 1, text: 'alpha' }))
+  index.addEntry(turn({ session_id: 'b', seq: 1, text: 'beta' }))
+  index.addEntry(turn({ session_id: 'c', seq: 1, text: 'gamma' }))
+  index.addEntry(turn({ session_id: 'd', seq: 1, text: 'delta' }))
+  const result = index.search('alpha beta gamma delta', 3)
+  assert.equal(result.items.length, 0, '部分命中不应算已定位')
+  assert.ok(result.candidates.length > 0, '但应当留下候选卡')
+  assert.ok(result.bestScore < 0.32)
+})
+await check('中文二元组单独命中不足以判定已定位（需判别性线索）', () => {
+  const index = new ArchiveIndex({})
+  index.addEntry(turn({ session_id: 'a', seq: 1, text: '关于视频与插件的一段说明' }))
+  for (let i = 0; i < 30; i += 1) index.addEntry(turn({ session_id: `f${i}`, seq: 1, text: `别的内容 ${i}` }))
+  const result = index.search('视频插件', 3)
+  assert.equal(result.hasLatinCue, false)
+  assert.equal(result.accepted, false, '中文二元组不该单独构成已定位')
+  assert.equal(result.items.length, 0)
+  assert.ok(result.candidates.length > 0, '但应当留候选卡')
+})
+await check('含拉丁/数字的线索可以判定已定位', () => {
+  const index = new ArchiveIndex({})
+  index.addEntry(turn({ session_id: 'npm', seq: 1, text: '把 npm token 写进凭据文件' }))
+  for (let i = 0; i < 30; i += 1) index.addEntry(turn({ session_id: `f${i}`, seq: 1, text: `别的内容 ${i}` }))
+  const result = index.search('npm token 怎么填', 3)
+  assert.equal(result.hasLatinCue, true)
+  assert.equal(result.accepted, true)
+  assert.ok(result.items.length >= 1)
+  assert.equal(result.items[0].id, 'npm#1')
+})
+await check('返回条数不超过 limit', () => {
+  const index = new ArchiveIndex({})
+  for (let i = 0; i < 10; i += 1) {
+    index.addEntry(turn({ session_id: 'x', seq: i + 1, text: '同一件事的重复描述：插件与记忆' }))
+  }
+  const result = index.search('插件与记忆', 2)
+  assert.ok(result.items.length <= 2)
+  assert.ok(result.candidates.length <= 12)
+})
+await check('超过条目上限时标记 degraded 而不是静默丢弃', () => {
+  const index = new ArchiveIndex({ maxEntries: 2 })
+  index.addEntry(turn({ session_id: 'a', seq: 1, text: '第一条' }))
+  index.addEntry(turn({ session_id: 'b', seq: 1, text: '第二条' }))
+  index.addEntry(turn({ session_id: 'c', seq: 1, text: '第三条' }))
+  assert.equal(index.size, 2)
+  assert.equal(index.stats().degraded, 'max_entries')
+})
+await check('索引统计可用于状态查询', () => {
+  const index = new ArchiveIndex({})
+  index.addEntry(turn({ seq: 1, text: '统计一下这条记录的 token' }))
+  const stats = index.stats()
+  assert.equal(stats.entries, 1)
+  assert.ok(stats.distinctTokens > 0)
+  assert.ok(stats.postings > 0)
+  assert.equal(stats.degraded, null)
 })
 
 console.log('存储与清理')

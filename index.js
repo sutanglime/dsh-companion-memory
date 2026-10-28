@@ -5,6 +5,7 @@
  * 旧事只有用户给出线索时才通过 memory_recall 从冷库取回。
  */
 import { advanceCursor, deriveTurnEntry, fillCursor } from './lib/archive.js'
+import { ArchiveIndex } from './lib/archive-index.js'
 import { buildSnapshot, estimateTokens, lifecyclePass, resolveConfig } from './lib/engine.js'
 import { CONTEXT_ORDER, POLICY_SECTION_NAME, SNAPSHOT_CONTEXT_NAME, SECTION_ORDER, policyText, renderSnapshotText } from './lib/render.js'
 import { MemoryStore, resolveDataDir } from './lib/store.js'
@@ -35,6 +36,7 @@ export async function apply(ctx, config) {
     warn(ctx, `dsh-companion-memory: 读取 ${dataDir} 失败，将从空记忆继续：${error && error.message ? error.message : String(error)}`)
   }
 
+  const archiveIndex = new ArchiveIndex(resolved.archiveIndex)
   const recallState = { at: 0, cue: '', status: 'not_run', tokens: 0, degraded: 'lexical_fallback', items: [] }
   let lastLifecycleAt = 0
   let persistQueue = Promise.resolve()
@@ -46,8 +48,15 @@ export async function apply(ctx, config) {
   const liveRecall = () => {
     if (!Array.isArray(recallState.items) || recallState.items.length === 0) return null
     const alive = recallState.items.filter((item) => {
-      const record = store.get(item.record.id)
-      return record !== undefined && record.status === 'valid'
+      if (!item) return false
+      // 记忆卡条目：按卡片的有效性判断。
+      if (item.record && item.record.id) {
+        const record = store.get(item.record.id)
+        return record !== undefined && record.status === 'valid'
+      }
+      // 归档条目：按索引里是否还在判断（契约/删除后立即失效）。
+      if (item.source === 'archive') return archiveIndex.byId.has(item.id)
+      return false
     })
     if (alive.length === 0) {
       recallState.items = []
@@ -100,6 +109,7 @@ export async function apply(ctx, config) {
         await store.archiveTurn(entry)
         store.state.archive_watermarks = { ...(store.state.archive_watermarks ?? {}), [entry.session_id]: entry.seq }
         await store.saveState()
+        archiveIndex.addEntry(entry)
         return entry
       })
       .catch((error) => {
@@ -147,6 +157,7 @@ export async function apply(ctx, config) {
         entry.session_id = id
         try {
           await store.archiveTurn(entry)
+          archiveIndex.addEntry(entry)
         } catch (error) {
           warn(ctx, `dsh-companion-memory: 回填写入失败（${id} seq ${entry.seq}）：${error && error.message ? error.message : String(error)}`)
           break
@@ -178,6 +189,8 @@ export async function apply(ctx, config) {
       if (before && typeof entry.at === 'string' && entry.at < before) return true
       return false
     })
+    // 归档变了，索引必须跟着失效，否则会召回已删除的原文。
+    if (removed > 0) archiveIndex.clear()
     if (sessionId || all) {
       const watermarks = { ...(store.state.archive_watermarks ?? {}) }
       if (all) store.state.archive_watermarks = {}
@@ -198,7 +211,7 @@ export async function apply(ctx, config) {
     purge: (options) => purgeArchiveRange(options),
   }
 
-  registerMemoryTools(ctx, { store, config: resolved, runLifecycle, recallState, archive: archiveApi })
+  registerMemoryTools(ctx, { store, config: resolved, runLifecycle, recallState, archive: archiveApi, archiveIndex })
 
   // 全自动对话归档：订阅提交后的事件流，只取对话轮次。
   const cursors = new Map()

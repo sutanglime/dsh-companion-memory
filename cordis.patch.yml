@@ -50,3 +50,23 @@
           backfillOnStart: false
           # 每个会话单次回填的轮次上限，0 = 不限
           backfillLimitPerSession: 0
+        # 归档原文的词法检索（memory_recall 的第二条通道）
+        archiveIndex:
+          enabled: true
+          # 建索引的条目上限；超过后退化为"先到的这些"并标记 degraded
+          maxEntries: 50000
+          # 单条只取前 N 个 token，避免超长助手消息主导打分
+          maxEntryTokens: 600
+          # 出现频率超过语料该比例的 token 视为噪声忽略
+          maxDfRatio: 0.35
+          # 稀有词阈值：用于判定"强命中"
+          rareDfRatio: 0.05
+          # 低于这个归一化分数不当作命中，转为候选让用户补线索
+          minScore: 0.32
+          # 用户发言比助手复述更接近旧事的锚点
+          userWeight: 1.15
+          excerptChars: 90
+          maxCandidates: 12
+          recheckMs: 60000
+          k1: 1.4
+          b: 0.7

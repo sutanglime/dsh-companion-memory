@@ -1,6 +1,6 @@
 {
   "name": "dsh-companion-memory",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "description": "陪伴 AI 的冷热分层记忆：全自动对话归档、旧事渐进冷存、按用户线索召回冷库，并在每轮请求前按预算限制注入的记忆快照。",
   "keywords": [
