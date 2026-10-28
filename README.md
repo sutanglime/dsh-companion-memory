@@ -1,5 +1,7 @@
 # dsh-companion-memory
 
+[![npm version](https://img.shields.io/npm/v/dsh-companion-memory.svg)](https://www.npmjs.com/package/dsh-companion-memory)
+[![npm downloads](https://img.shields.io/npm/dm/dsh-companion-memory.svg)](https://www.npmjs.com/package/dsh-companion-memory)
 ![selfcheck](https://github.com/sutanglime/dsh-companion-memory/actions/workflows/selfcheck.yml/badge.svg)
 ![license](https://img.shields.io/badge/license-MIT-blue.svg)
 

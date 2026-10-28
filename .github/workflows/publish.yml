@@ -1,0 +1,77 @@
+name: publish
+
+# 只在「发布 Release」或手动触发时发版；普通 push 不会发布。
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  # OIDC 换取 npm 短期凭据所必需。本工作流不需要任何 NPM_TOKEN。
+  id-token: write
+  contents: read
+
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: publish to npm (trusted publishing)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 刻意不设置 registry-url：避免 setup-node 生成带空 NODE_AUTH_TOKEN 的 .npmrc，
+      # 让 OIDC 成为唯一的凭据来源。
+      # node 24 自带的 npm 满足 trusted publishing 要求的 >= 11.5.1。
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          package-manager-cache: false
+
+      - name: 环境与版本
+        run: |
+          node --version
+          npm --version
+          node -e "console.log('package version:', require('./package.json').version)"
+
+      - name: 自检（30 项固定用例）
+        run: node selfcheck.mjs
+
+      # npm 官方排错条目：package.json 的 repository.url 必须与 GitHub 仓库一致，
+      # 否则 trusted publishing 会失败。
+      - name: 校验 repository.url 与仓库一致
+        run: |
+          node -e "
+          const pkg = require('./package.json');
+          const url = (pkg.repository && (pkg.repository.url || pkg.repository)) || '';
+          if (!/sutanglime\/dsh-companion-memory/.test(url)) {
+            console.error('repository.url 与仓库不一致，trusted publishing 会失败：' + url);
+            process.exit(1);
+          }
+          console.log('repository.url OK:', url);
+          "
+
+      - name: 判断该版本是否已在 npm 上
+        id: version
+        run: |
+          VERSION=$(node -e "process.stdout.write(require('./package.json').version)")
+          echo "value=$VERSION" >> "$GITHUB_OUTPUT"
+          if npm view "dsh-companion-memory@$VERSION" version >/dev/null 2>&1; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::dsh-companion-memory@$VERSION 已存在，跳过发布。要发新版本请先提升 package.json 的 version。"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::将发布 dsh-companion-memory@$VERSION"
+          fi
+
+      - name: 发布到 npm（OIDC，无 token）
+        if: steps.version.outputs.published == 'false'
+        run: npm publish --access public
+
+      - name: 发布后校验
+        if: steps.version.outputs.published == 'false'
+        run: |
+          npm view "dsh-companion-memory@${{ steps.version.outputs.value }}" version
+          npm view "dsh-companion-memory@${{ steps.version.outputs.value }}" dist.tarball

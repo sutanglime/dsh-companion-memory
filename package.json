@@ -13,6 +13,14 @@
   ],
   "license": "MIT",
   "author": "dsh-companion-memory contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sutanglime/dsh-companion-memory.git"
+  },
+  "homepage": "https://github.com/sutanglime/dsh-companion-memory#readme",
+  "bugs": {
+    "url": "https://github.com/sutanglime/dsh-companion-memory/issues"
+  },
   "icon": "./icon.svg",
   "exports": {
     ".": "./index.js",
