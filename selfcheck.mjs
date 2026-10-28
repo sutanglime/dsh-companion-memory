@@ -524,6 +524,21 @@ try {
     assert.ok(reopened.get('m-persist'))
     assert.equal(reopened.size(), 1)
   })
+  await check('并发写入互不破坏（唯一临时文件名）', async () => {
+    const concurrent = new MemoryStore(dir)
+    await concurrent.load()
+    await Promise.all([
+      concurrent.saveState(),
+      concurrent.saveState(),
+      concurrent.saveRecords(),
+      concurrent.saveState(),
+      concurrent.saveRecords(),
+    ])
+    const reread = new MemoryStore(dir)
+    await reread.load()
+    assert.equal(reread.state.version, 1)
+    assert.ok(reread.size() >= 1)
+  })
 } finally {
   await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 })
 }
